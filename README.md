@@ -118,10 +118,10 @@ Some of these options can also be given at runtime in the authorization request 
 `scope`, `team`, `team_domain`, and `redirect_uri` can be given at runtime. `scope`, `team`, and `redirect_uri` will be passed directly through to Slack in the OAuth GET request:
 
 ```ruby
-https://slack.com/oauth/authorize?scope=identity.basic,identity.email&team=team-id&redirect_uri=https://different.subdomain/different/callback/path
+https://slack.com/oauth/v2/authorize?scope=identity.basic,identity.email&team=team-id&redirect_uri=https://different.subdomain/different/callback/path
 ```
 
-`team_domain` will be inserted into the GET request as a subdomain `https://team-domain.slack.com/oauth/authorize`.
+`team_domain` will be inserted into the GET request as a subdomain `https://team-domain.slack.com/oauth/v2/authorize`.
 
 More information on provider and authentication options can be found in omniauth-slack's supporting gems [omniauth](https://github.com/omniauth/omniauth), [oauth2](https://github.com/oauth-xx/oauth2), and [omniauth-oauth2](https://github.com/omniauth/omniauth-oauth2).
 
