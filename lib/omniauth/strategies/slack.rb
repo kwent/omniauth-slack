@@ -8,7 +8,7 @@ module OmniAuth
     class Slack < OmniAuth::Strategies::OAuth2
       option :name, 'slack'
 
-      option :authorize_options, [:scope, :team, :team_domain, :redirect_uri]
+      option :authorize_options, [:scope, :team, :user_scope, :team_domain, :redirect_uri]
 
       option :client_options, {
         site: 'https://slack.com',
@@ -150,7 +150,7 @@ module OmniAuth
       # See https://github.com/omniauth/omniauth/issues/390
       def authorize_params
         super.tap do |params|
-          %w(scope team redirect_uri).each do |v|
+          %w(scope user_scope team redirect_uri).each do |v|
             if !request.params[v].to_s.empty?
               params[v.to_sym] = request.params[v]
             end
