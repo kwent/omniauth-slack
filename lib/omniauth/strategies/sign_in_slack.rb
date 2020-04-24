@@ -5,15 +5,15 @@ require 'uri'
 module OmniAuth
   module Strategies
 
-    class Slack < OmniAuth::Strategies::OAuth2
-      option :name, 'slack'
+    class SignInSlack < OmniAuth::Strategies::OAuth2
+      option :name, 'sign_in_slack'
 
       option :authorize_options, [:scope, :team, :user_scope, :team_domain, :redirect_uri]
 
       option :client_options, {
         site: 'https://slack.com',
         authorize_url: '/oauth/v2/authorize',
-        token_url: '/api/oauth.v2.access',
+        token_url: '/api/oauth.access',
         auth_scheme: :basic_auth
       }
 
