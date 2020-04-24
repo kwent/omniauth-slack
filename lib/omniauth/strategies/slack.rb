@@ -190,9 +190,9 @@ module OmniAuth
       end
 
       # Dropping query_string from callback_url prevents some errors in call to /api/oauth.v2.access.
-      def callback_url
-        full_host + script_name + callback_path
-      end
+      # def callback_url
+      #   full_host + script_name + callback_path
+      # end
 
       def identity
         return {} unless !skip_info? && has_scope?(identity: ['identity.basic','identity:read:user']) && is_not_excluded?
