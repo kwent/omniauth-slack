@@ -8,7 +8,7 @@ module OmniAuth
     class Slack < OmniAuth::Strategies::OAuth2
       option :name, 'slack'
 
-      option :authorize_options, [:scope, :team, :user_scope, :team_domain, :redirect_uri]
+      option :authorize_options, [:scope, :user_scope, :team, :team_domain, :redirect_uri]
 
       option :client_options, {
         site: 'https://slack.com',
@@ -190,9 +190,9 @@ module OmniAuth
       end
 
       # Dropping query_string from callback_url prevents some errors in call to /api/oauth.v2.access.
-      # def callback_url
-      #   full_host + script_name + callback_path
-      # end
+      def callback_url
+        full_host + script_name + callback_path
+      end
 
       def identity
         return {} unless !skip_info? && has_scope?(identity: ['identity.basic','identity:read:user']) && is_not_excluded?
