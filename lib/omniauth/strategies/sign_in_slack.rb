@@ -8,12 +8,12 @@ module OmniAuth
     class SignInSlack < OmniAuth::Strategies::OAuth2
       option :name, 'sign_in_slack'
 
-      option :authorize_options, [:scope, :team, :team_domain, :redirect_uri]
+      option :authorize_options, [:scope, :user_scope, :team, :team_domain, :redirect_uri]
 
       option :client_options, {
         site: 'https://slack.com',
-        authorize_url: '/oauth/authorize',
-        token_url: '/api/oauth.access',
+        authorize_url: '/oauth/v2/authorize',
+        token_url: '/api/oauth.v2.access',
         auth_scheme: :basic_auth
       }
 
@@ -150,7 +150,7 @@ module OmniAuth
       # See https://github.com/omniauth/omniauth/issues/390
       def authorize_params
         super.tap do |params|
-          %w(scope team redirect_uri).each do |v|
+          %w(scope user_scope team redirect_uri).each do |v|
             if !request.params[v].to_s.empty?
               params[v.to_sym] = request.params[v]
             end
