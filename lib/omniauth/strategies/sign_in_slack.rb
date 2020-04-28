@@ -2,6 +2,59 @@ require 'omniauth/strategies/oauth2'
 require 'thread'
 require 'uri'
 
+module OAuth2
+  class Client
+
+    # Returns the authenticator object
+    #
+    # @return [Authenticator] the initialized Authenticator
+    def authenticator
+      Authenticator.new(id, secret, options[:auth_scheme])
+    end
+
+    # Builds the access token from the response of the HTTP call
+    #
+    # @return [AccessToken] the initialized AccessToken
+    def build_access_token(response, access_token_opts, access_token_class)
+      access_token_class.from_hash(self, response.parsed.merge(access_token_opts)).tap do |access_token|
+        access_token.response = response if access_token.respond_to?(:response=)
+      end
+    end
+
+    # Initializes an AccessToken by making a request to the token endpoint
+    #
+    # @param [Hash] params a Hash of params for the token endpoint
+    # @param [Hash] access token options, to pass to the AccessToken object
+    # @param [Class] class of access token for easier subclassing OAuth2::AccessToken
+    # @return [AccessToken] the initialized AccessToken
+    def get_token(params, access_token_opts = {}, access_token_class = AccessToken) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+      params = authenticator.apply(params)
+      opts = {:raise_errors => options[:raise_errors], :parse => params.delete(:parse)}
+      headers = params.delete(:headers) || {}
+      if options[:token_method] == :post
+        opts[:body] = params
+        opts[:headers] = {'Content-Type' => 'application/x-www-form-urlencoded'}
+      else
+        opts[:params] = params
+        opts[:headers] = {}
+      end
+      opts[:headers].merge!(headers)
+      response = request(options[:token_method], token_url, opts)
+      response_contains_token = response.parsed.is_a?(Hash) &&
+                                ((response.parsed['authed_user'] && response.parsed['authed_user']['access_token']) || (response.parsed['authed_user'] && response.parsed['authed_user']['id_token']))
+
+      if options[:raise_errors] && !response_contains_token
+        error = Error.new(response)
+        raise(error)
+      elsif !response_contains_token
+        return nil
+      end
+
+      build_access_token(response, access_token_opts.merge(access_token: response.parsed['authed_user']['access_token']), access_token_class)
+    end
+  end
+end
+
 module OmniAuth
   module Strategies
 
@@ -37,8 +90,8 @@ module OmniAuth
 
       credentials do
         {
-          token: auth['token'],
-          scope: (is_app_token? ? all_scopes : auth['scope']),
+          token: auth['authed_user']['access_token'],
+          scope: auth['authed_user']['scope'],
           expires: false
         }
       end
@@ -58,12 +111,8 @@ module OmniAuth
 
         # Start with only what we can glean from the authorization response.
         hash = {
-          name: auth['user'].to_h['name'],
-          email: auth['user'].to_h['email'],
           user_id: user_id,
-          team_name: auth['team_name'] || auth['team'].to_h['name'],
           team_id: team_id,
-          image: auth['team'].to_h['image_48']
         }
 
         # Now add everything else, using further calls to the api, if necessary.
@@ -139,7 +188,6 @@ module OmniAuth
           user_info: user_info,
           user_profile: user_profile,
           team_info: team_info,
-          apps_permissions_users_list: apps_permissions_users_list,
           additional_data: get_additional_data,
           raw_info: @raw_info
         }
@@ -195,7 +243,7 @@ module OmniAuth
       end
 
       def identity
-        return {} unless !skip_info? && has_scope?(identity: ['identity.basic','identity:read:user']) && is_not_excluded?
+        return {} unless !skip_info? && has_scope?(identity: ['identity.basic']) && is_not_excluded?
         semaphore.synchronize {
           @identity_raw ||= access_token.get('/api/users.identity', headers: {'X-Slack-User' => user_id})
           @identity ||= @identity_raw.parsed
@@ -223,7 +271,7 @@ module OmniAuth
         @active_methods ||= (
           includes = [options.include_data].flatten.compact
           excludes = [options.exclude_data].flatten.compact unless includes.size > 0
-          method_list = %w(apps_permissions_users_list identity user_info user_profile team_info bot_info)  #.concat(options[:additional_data].keys)
+          method_list = %w(identity user_info user_profile team_info bot_info)  #.concat(options[:additional_data].keys)
           if includes.size > 0
             method_list.keep_if {|m| includes.include?(m.to_s) || includes.include?(m.to_s.to_sym)}
           elsif excludes.size > 0
@@ -286,7 +334,7 @@ module OmniAuth
 
       # Parsed data returned from /slack/oauth.v2.access api call.
       def auth
-        @auth ||= access_token.params.to_h.merge({'token' => access_token.token})
+        @auth ||= access_token.params.to_h.merge({'access_token' => access_token.token})
       end
 
       def user_identity
@@ -342,26 +390,8 @@ module OmniAuth
         auth['team_id'] || auth['team'].to_h['id']
       end
 
-      # API call to get user permissions for workspace token.
-      # This is needed because workspace token 'sign-in-with-slack' is missing scopes
-      # in the :scope field (acknowledged issue in developer preview).
-      #
-      # Returns [<id>: <resource>]
-      def apps_permissions_users_list
-        return {} unless !skip_info? && is_app_token? && is_not_excluded?
-        semaphore.synchronize {
-          @apps_permissions_users_list_raw ||= access_token.get('/api/apps.permissions.users.list')
-          @apps_permissions_users_list ||= @apps_permissions_users_list_raw.parsed['resources'].inject({}){|h,i| h[i['id']] = i; h}
-        }
-      end
-
       def raw_info
         @raw_info ||= {}
-      end
-
-      # Is this a workspace app token?
-      def is_app_token?
-        auth['token_type'].to_s == 'app'
       end
 
       # Scopes come from at least 3 different places now.
@@ -373,7 +403,7 @@ module OmniAuth
       # Lists of scopes are in array form.
       def all_scopes
         @all_scopes ||=
-        {'identity' => (auth['scope'] || apps_permissions_users_list[user_id].to_h['scopes'].to_a.join(',')).to_s.split(',')}
+        {'identity' => (auth['authed_user']['scope']).to_s.split(',')}
         .merge(auth['scopes'].to_h)
       end
 
