@@ -2,58 +2,57 @@ require 'omniauth/strategies/oauth2'
 require 'thread'
 require 'uri'
 
-module OAuth2
-  class Client
+class SignInSlackClient < OAuth2::Client
 
-    # Returns the authenticator object
-    #
-    # @return [Authenticator] the initialized Authenticator
-    def authenticator
-      Authenticator.new(id, secret, options[:auth_scheme])
-    end
+  # Returns the authenticator object
+  #
+  # @return [Authenticator] the initialized Authenticator
+  def authenticator
+    OAuth2::Authenticator.new(id, secret, options[:auth_scheme])
+  end
 
-    # Builds the access token from the response of the HTTP call
-    #
-    # @return [AccessToken] the initialized AccessToken
-    def build_access_token(response, access_token_opts, access_token_class)
-      access_token_class.from_hash(self, response.parsed.merge(access_token_opts)).tap do |access_token|
-        access_token.response = response if access_token.respond_to?(:response=)
-      end
-    end
-
-    # Initializes an AccessToken by making a request to the token endpoint
-    #
-    # @param [Hash] params a Hash of params for the token endpoint
-    # @param [Hash] access token options, to pass to the AccessToken object
-    # @param [Class] class of access token for easier subclassing OAuth2::AccessToken
-    # @return [AccessToken] the initialized AccessToken
-    def get_token(params, access_token_opts = {}, access_token_class = AccessToken) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-      params = authenticator.apply(params)
-      opts = {:raise_errors => options[:raise_errors], :parse => params.delete(:parse)}
-      headers = params.delete(:headers) || {}
-      if options[:token_method] == :post
-        opts[:body] = params
-        opts[:headers] = {'Content-Type' => 'application/x-www-form-urlencoded'}
-      else
-        opts[:params] = params
-        opts[:headers] = {}
-      end
-      opts[:headers].merge!(headers)
-      response = request(options[:token_method], token_url, opts)
-      response_contains_token = response.parsed.is_a?(Hash) &&
-                                ((response.parsed['authed_user'] && response.parsed['authed_user']['access_token']) || (response.parsed['authed_user'] && response.parsed['authed_user']['id_token']))
-
-      if options[:raise_errors] && !response_contains_token
-        error = Error.new(response)
-        raise(error)
-      elsif !response_contains_token
-        return nil
-      end
-
-      build_access_token(response, access_token_opts.merge(access_token: response.parsed['authed_user']['access_token']), access_token_class)
+  # Builds the access token from the response of the HTTP call
+  #
+  # @return [AccessToken] the initialized AccessToken
+  def build_access_token(response, access_token_opts, access_token_class)
+    access_token_class.from_hash(self, response.parsed.merge(access_token_opts)).tap do |access_token|
+      access_token.response = response if access_token.respond_to?(:response=)
     end
   end
+
+  # Initializes an AccessToken by making a request to the token endpoint
+  #
+  # @param [Hash] params a Hash of params for the token endpoint
+  # @param [Hash] access token options, to pass to the AccessToken object
+  # @param [Class] class of access token for easier subclassing OAuth2::AccessToken
+  # @return [AccessToken] the initialized AccessToken
+  def get_token(params, access_token_opts = {}, access_token_class = OAuth2::AccessToken) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+    params = authenticator.apply(params)
+    opts = {:raise_errors => options[:raise_errors], :parse => params.delete(:parse)}
+    headers = params.delete(:headers) || {}
+    if options[:token_method] == :post
+      opts[:body] = params
+      opts[:headers] = {'Content-Type' => 'application/x-www-form-urlencoded'}
+    else
+      opts[:params] = params
+      opts[:headers] = {}
+    end
+    opts[:headers].merge!(headers)
+    response = request(options[:token_method], token_url, opts)
+    response_contains_token = response.parsed.is_a?(Hash) &&
+                              ((response.parsed['authed_user'] && response.parsed['authed_user']['access_token']) || (response.parsed['authed_user'] && response.parsed['authed_user']['id_token']))
+
+    if options[:raise_errors] && !response_contains_token
+      error = Error.new(response)
+      raise(error)
+    elsif !response_contains_token
+      return nil
+    end
+
+    build_access_token(response, access_token_opts.merge(access_token: response.parsed['authed_user']['access_token']), access_token_class)
+  end
 end
+
 
 module OmniAuth
   module Strategies
@@ -215,7 +214,7 @@ module OmniAuth
       # * Set auth site uri with custom subdomain (if provided).
       #
       def client
-        new_client = super
+        new_client = ::SignInSlackClient.new(options.client_id, options.client_secret, deep_symbolize(options.client_options))
 
         team_domain = request.params['team_domain'] || options[:team_domain]
         if !team_domain.to_s.empty?
