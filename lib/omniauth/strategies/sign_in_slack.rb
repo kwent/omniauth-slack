@@ -382,7 +382,7 @@ module OmniAuth
       end
 
       def user_id
-        auth['user_id'] || auth['user'].to_h['id'] || auth['authorizing_user'].to_h['user_id']
+        auth['user_id'] || auth['user'].to_h['id'] || auth['authed_user'].to_h['id'] || auth['authorizing_user'].to_h['user_id']
       end
 
       def team_id
