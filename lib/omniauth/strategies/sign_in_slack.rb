@@ -43,7 +43,7 @@ class SignInSlackClient < OAuth2::Client
                               ((response.parsed['authed_user'] && response.parsed['authed_user']['access_token']) || (response.parsed['authed_user'] && response.parsed['authed_user']['id_token']))
 
     if options[:raise_errors] && !response_contains_token
-      error = Error.new(response)
+      error = OmniAuth::Error.new(response)
       raise(error)
     elsif !response_contains_token
       return nil
