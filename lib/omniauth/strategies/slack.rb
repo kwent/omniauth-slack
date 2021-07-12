@@ -195,7 +195,7 @@ module OmniAuth
       end
 
       def identity
-        return {} unless !skip_info? && has_scope?(identity: ['identity.basic','identity:read:user']) && is_not_excluded?
+        return {} unless !skip_info? && has_scope?(identity: ['identity.basic']) && is_not_excluded?
         semaphore.synchronize {
           @identity_raw ||= access_token.get('/api/users.identity', headers: {'X-Slack-User' => user_id})
           @identity ||= @identity_raw.parsed
